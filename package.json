@@ -1,7 +1,7 @@
 {
   "name": "com.adkom-games.bezi-bridge",
   "version": "1.0.0",
-  "displayName": "Bezi Python Bridge",
+  "displayName": "ADKOM Bezi/Ralph Wiggum Bridge",
   "description": "Automated bridge for the Bezi AI desktop app using the Ralph Wiggum loop.",
   "unity": "2021.3",
   "author": {
