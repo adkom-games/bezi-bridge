@@ -66,7 +66,6 @@ try {
         Get-Content -Path $PromptFile -Raw | Out-File -FilePath $TempPromptPath -Encoding utf8
         
         # Build Bridge Arguments as an array to fix malformed string errors
-        # Removed -t ThreadName logic as requested
         $BridgeArgs = @("bezi_bridge.py", $TempPromptPath)
         if ($d) { $BridgeArgs += "-d" }
         

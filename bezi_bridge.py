@@ -103,30 +103,21 @@ class BeziBridge:
         try:
             app = Application(backend="uia").connect(title="Bezi", class_name="Tauri Window", timeout=10)
             self.bezi_window = app.window(title="Bezi", class_name="Tauri Window")
-        except:
+        except Exception as e:
+            print(f"Exception connection to Bezi app. {e}", file=sys.stderr, flush=True)
+            print(f"Attempting to launch exe.", file=sys.stderr, flush=True)
             if not self.bezi_path:
                 self.bezi_path = r"C:\Program Files\Bezi\Bezi.exe"
             app = Application(backend="uia").start(self.bezi_path)
             self.bezi_window = app.window(title="Bezi", class_name="Tauri Window")
-            self.bezi_window.wait("visible", timeout=60)
-
-    @debug_trace
-    def is_bezi_ready(self):
-        self.find_windows()
-        button = self.find_submit_button()
-        if not button: return False
-        state = self.get_button_state(button)
-        if state == "READY":
-            print("Bezi is ready", file=sys.stderr, flush=True)
-            return True
-        return False
+        #self.bezi_window.wait("visible", timeout=60)
 
     @debug_trace
     def get_bezi_state(self):
         self.find_windows()
         button = self.find_submit_button()
         if not button:
-            print("unable to find submit button")
+            print("unable to find submit button", file=sys.stderr, flush=True)
             exit(1)
         state = self.get_button_state(button)
         return state
@@ -141,65 +132,58 @@ class BeziBridge:
         return None
 
     @debug_trace
-    def find_button(self, name):
-        try:
-            return self.bezi_window.child_window(title=name, control_type="Button", timeout=5)
-        except:
-            return None
-
-    @debug_trace
     def new_thread(self):
         """Triggers a new thread and refreshes handles to prevent stale elements."""
         self.bezi_window.set_focus()
         self.bezi_window.type_keys("^T")
         time.sleep(1)
-        if self.click_button("Keep all changes"):
-            time.sleep(2)
-        # Refresh the UI tree handle after navigation
         self.find_windows()
+        self.close_dialogs()
 
     @debug_trace
     def send_prompt(self, message):        
         if not message: raise ValueError("Empty prompt")
         
-        self.find_windows()
-        self.bezi_window.set_focus()
-        
-        # Wait until the prompt icon is INACTIVE
+        # Wait until the button icon is INACTIVE, anything else means that
+        # the ai is busy.
         while "INACTIVE" != self.get_bezi_state():
-            self.click_button("Continue")
-            time.sleep(2)
+            self.close_dialogs()
+            time.sleep(1)
+        self.close_dialogs()
             
         try:
-            # Using depth=2 for more reliable targeting in Tauri apps
+            self.find_windows()            
             prompt_box = self.bezi_window.descendants(control_type="Edit")[-1]
             prompt_box.set_text(message)
             time.sleep(1)
+            self.bezi_window.type_keys("{ENTER}")
+            time.sleep(2)
         except Exception as e:
-            print(f"unable to find prompt box: {e}")
+            print(f"unable to find prompt box: {e}", file=sys.stderr, flush=True)
             return False
+        self.find_windows()
         
-        # Wait until the prompt icon is not BUSY
-        state = self.get_bezi_state()
-        while "BUSY" == state:
-            self.click_button("Continue")
-            time.sleep(2)
-            state = self.get_bezi_state()
-        self.bezi_window.type_keys("{ENTER}")
-
-        # Wait until the prompt icon is INACTIVE
+        # Again wait for the button icon to become INACTIVE.
         while "INACTIVE" != self.get_bezi_state():
-            self.click_button("Continue")
-            time.sleep(2)
+            self.close_dialogs()
+            time.sleep(1)
+        self.close_dialogs()
 
         self.find_windows()
         elements = self.bezi_window.descendants(control_type="Text")
         return [e.window_text().strip() for e in elements]
 
     @debug_trace
-    def click_button(self, button_name):
+    def close_dialogs(self):
+        self.click_button_by_name("Continue")
+        self.find_windows()
+        self.click_button_by_name("Keep All")
+        self.find_windows()
+
+    @debug_trace
+    def click_button_by_name(self, button_name):
         try:
-            button = self.find_button(button_name)
+            button = self.bezi_window.child_window(title=button_name, control_type="Button", timeout=5)
             if button:
                 button.click_input()
                 return True
@@ -291,6 +275,6 @@ if __name__ == "__main__":
     try:
         success, result = bridge.run()
         if success: 
-            print(f"Result: {result}", file=sys.stderr, flush=True)
+            print(f"{result}", flush=True)
     finally:
         perf_logger.save_timings()
